@@ -38,8 +38,8 @@ const COLORS = [
   { name: '黃', value: 'bg-yellow-500' },
   { name: '綠', value: 'bg-green-500' },
   { name: '藍', value: 'bg-blue-500' },
-  { name: '靛', value: 'bg-indigo-500' },
   { name: '紫', value: 'bg-purple-500' },
+  { name: '灰', value: 'bg-gray-500' },
 ];
 
 export default function App() {
