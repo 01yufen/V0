@@ -89,7 +89,6 @@ export default function App() {
     setTopics(topics.filter(t => t.id !== id));
   };
 
-  // 新增：更新現有主題的目標單元數
   const handleUpdateTopicTarget = (id, newTarget) => {
     setTopics(topics.map(t => 
       t.id === id ? { ...t, target: Math.max(1, newTarget) } : t
@@ -146,7 +145,7 @@ export default function App() {
   const totalTargetUnits = topics.reduce((sum, topic) => sum + topic.target, 0);
   const remainingUnits = 42 - totalTargetUnits;
 
-  // 新增：計算當週 P人的成功 與 加油 數量
+  // 計算當週 P人的成功 與 加油 數量
   let successCount = 0;
   let needsWorkCount = 0;
   
@@ -154,19 +153,22 @@ export default function App() {
     weekDates.forEach(date => {
       const dateKey = formatDateKey(date);
       for (let i = 0; i < 6; i++) {
-        if (schedule[dateKey]?.[i]) { // 如果該單元有安排主題
+        if (schedule[dateKey]?.[i]) {
           const unitTasks = tasks[`${dateKey}-${i}`] || [];
-          // 如果有待辦項目，且每一個都完成了
           if (unitTasks.length > 0 && unitTasks.every(t => t.completed)) {
             successCount++;
           } else {
-            // 沒有待辦項目，或是沒有全部完成
             needsWorkCount++;
           }
         }
       }
     });
   }
+
+  // 產生選單數字陣列的輔助函式
+  const generateOptions = (max) => {
+    return Array.from({ length: max }, (_, i) => i + 1);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
@@ -210,7 +212,21 @@ export default function App() {
               <input type="text" placeholder="主題名稱 (例: 開發 App)" className="border p-2 rounded flex-1 min-w-[200px]" value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} />
               <div className="flex items-center gap-2">
                 <span className="text-sm text-gray-600">目標單元:</span>
-                <input type="number" min="1" max={Math.max(1, remainingUnits)} className="border p-2 rounded w-20" value={newTopicTarget} onChange={(e) => setNewTopicTarget(Number(e.target.value))} />
+                {/* 修改：新增主題的單元數改為數字選單 */}
+                <select 
+                  className="border p-2 rounded w-20 bg-white" 
+                  value={newTopicTarget} 
+                  onChange={(e) => setNewTopicTarget(Number(e.target.value))}
+                  disabled={remainingUnits <= 0}
+                >
+                  {remainingUnits > 0 ? (
+                    generateOptions(remainingUnits).map(num => (
+                      <option key={num} value={num}>{num}</option>
+                    ))
+                  ) : (
+                    <option value="1">1</option>
+                  )}
+                </select>
               </div>
               <div className="flex gap-2 items-center bg-gray-50 p-2 rounded border">
                 {COLORS.map(c => (
@@ -227,27 +243,34 @@ export default function App() {
             </div>
             
             <ul className="space-y-3">
-              {topics.map(topic => (
-                <li key={topic.id} className="flex justify-between items-center p-3 bg-gray-50 rounded border">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-4 h-4 rounded-full ${topic.color}`}></span>
-                    <span className="font-medium">{topic.name}</span>
-                    <div className="flex items-center gap-2 ml-4">
-                      <span className="text-sm text-gray-500">目標:</span>
-                      {/* 修改：改為可直接編輯的輸入框 */}
-                      <input 
-                        type="number" 
-                        min="1"
-                        className="border p-1 rounded w-16 text-sm text-center"
-                        value={topic.target} 
-                        onChange={(e) => handleUpdateTopicTarget(topic.id, parseInt(e.target.value) || 1)} 
-                      />
-                      <span className="text-sm text-gray-500">單元</span>
+              {topics.map(topic => {
+                // 計算這個主題最多可以調整到多少數量 (目前的數量 + 剩餘的空間)
+                const maxAllowed = Math.max(1, topic.target + remainingUnits);
+                
+                return (
+                  <li key={topic.id} className="flex justify-between items-center p-3 bg-gray-50 rounded border">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-4 h-4 rounded-full ${topic.color}`}></span>
+                      <span className="font-medium">{topic.name}</span>
+                      <div className="flex items-center gap-2 ml-4">
+                        <span className="text-sm text-gray-500">目標:</span>
+                        {/* 修改：已建立主題的單元數改為數字選單 */}
+                        <select
+                          className="border p-1 rounded w-16 text-sm text-center bg-white"
+                          value={topic.target}
+                          onChange={(e) => handleUpdateTopicTarget(topic.id, Number(e.target.value))}
+                        >
+                          {generateOptions(maxAllowed).map(num => (
+                            <option key={num} value={num}>{num}</option>
+                          ))}
+                        </select>
+                        <span className="text-sm text-gray-500">單元</span>
+                      </div>
                     </div>
-                  </div>
-                  <button onClick={() => handleDeleteTopic(topic.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={18}/></button>
-                </li>
-              ))}
+                    <button onClick={() => handleDeleteTopic(topic.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={18}/></button>
+                  </li>
+                );
+              })}
               {topics.length === 0 && <p className="text-gray-400 text-sm text-center py-4">尚未設定任何主題</p>}
             </ul>
           </div>
@@ -306,7 +329,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* 新增：P人的計分板 */}
             <div className="flex justify-center gap-8 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
               <div className="text-lg font-bold text-green-600">
                 P人的成功：{successCount}
