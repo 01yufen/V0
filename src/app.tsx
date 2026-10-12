@@ -89,6 +89,13 @@ export default function App() {
     setTopics(topics.filter(t => t.id !== id));
   };
 
+  // 新增：更新現有主題的目標單元數
+  const handleUpdateTopicTarget = (id, newTarget) => {
+    setTopics(topics.map(t => 
+      t.id === id ? { ...t, target: Math.max(1, newTarget) } : t
+    ));
+  };
+
   const handleAssignTopic = (dateKey, unitIndex, topicId) => {
     const newSchedule = { ...schedule };
     if (!newSchedule[dateKey]) newSchedule[dateKey] = Array(6).fill(null);
@@ -125,7 +132,6 @@ export default function App() {
     return topics.find(t => t.id === topicId) || null;
   };
 
-  // 取得該主題在「當週」已經被分配了幾個單元
   const getTopicUsage = (topicId) => {
     let count = 0;
     weekDates.forEach(date => {
@@ -139,6 +145,28 @@ export default function App() {
 
   const totalTargetUnits = topics.reduce((sum, topic) => sum + topic.target, 0);
   const remainingUnits = 42 - totalTargetUnits;
+
+  // 新增：計算當週 P人的成功 與 加油 數量
+  let successCount = 0;
+  let needsWorkCount = 0;
+  
+  if (activeTab === 'dashboard') {
+    weekDates.forEach(date => {
+      const dateKey = formatDateKey(date);
+      for (let i = 0; i < 6; i++) {
+        if (schedule[dateKey]?.[i]) { // 如果該單元有安排主題
+          const unitTasks = tasks[`${dateKey}-${i}`] || [];
+          // 如果有待辦項目，且每一個都完成了
+          if (unitTasks.length > 0 && unitTasks.every(t => t.completed)) {
+            successCount++;
+          } else {
+            // 沒有待辦項目，或是沒有全部完成
+            needsWorkCount++;
+          }
+        }
+      }
+    });
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
@@ -204,7 +232,18 @@ export default function App() {
                   <div className="flex items-center gap-3">
                     <span className={`w-4 h-4 rounded-full ${topic.color}`}></span>
                     <span className="font-medium">{topic.name}</span>
-                    <span className="text-sm text-gray-500">目標: {topic.target} 單元</span>
+                    <div className="flex items-center gap-2 ml-4">
+                      <span className="text-sm text-gray-500">目標:</span>
+                      {/* 修改：改為可直接編輯的輸入框 */}
+                      <input 
+                        type="number" 
+                        min="1"
+                        className="border p-1 rounded w-16 text-sm text-center"
+                        value={topic.target} 
+                        onChange={(e) => handleUpdateTopicTarget(topic.id, parseInt(e.target.value) || 1)} 
+                      />
+                      <span className="text-sm text-gray-500">單元</span>
+                    </div>
                   </div>
                   <button onClick={() => handleDeleteTopic(topic.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={18}/></button>
                 </li>
@@ -225,44 +264,56 @@ export default function App() {
         )}
 
         {activeTab === 'dashboard' && (
-          <div className="bg-white p-6 rounded-lg shadow-sm border overflow-x-auto">
-            <div className="min-w-[800px]">
-              <div className="grid grid-cols-8 gap-2 mb-2 font-medium text-gray-600 text-center">
-                <div>單元 / 日期</div>
-                {weekDates.map((date, i) => (
-                  <div key={i}>{days[i]} <div className="text-xs text-gray-400">{date.getDate()}日</div></div>
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border overflow-x-auto">
+              <div className="min-w-[800px]">
+                <div className="grid grid-cols-8 gap-2 mb-2 font-medium text-gray-600 text-center">
+                  <div>單元 / 日期</div>
+                  {weekDates.map((date, i) => (
+                    <div key={i}>{days[i]} <div className="text-xs text-gray-400">{date.getDate()}日</div></div>
+                  ))}
+                </div>
+                {units.map((unit, unitIndex) => (
+                  <div key={unitIndex} className="grid grid-cols-8 gap-2 mb-2 items-center">
+                    <div className="text-center text-sm font-medium text-gray-500">{unit}</div>
+                    {weekDates.map((date, dayIndex) => {
+                      const dateKey = formatDateKey(date);
+                      const topicId = schedule[dateKey]?.[unitIndex];
+                      const topic = getTopicDetails(topicId);
+                      const unitTasks = tasks[`${dateKey}-${unitIndex}`] || [];
+                      const completedTasks = unitTasks.filter(t => t.completed).length;
+                      const totalTasks = unitTasks.length;
+                      
+                      return (
+                        <div key={dayIndex} className={`h-16 rounded border flex flex-col justify-center items-center p-1 text-xs ${topic ? topic.color + ' text-white bg-opacity-90' : 'bg-gray-50'}`}>
+                          {topic ? (
+                            <>
+                              <span className="font-bold truncate w-full text-center">{topic.name}</span>
+                              {totalTasks > 0 && (
+                                <span className="mt-1 bg-white/20 px-2 rounded-full">
+                                  {completedTasks}/{totalTasks} 完成
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-300">-</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 ))}
               </div>
-              {units.map((unit, unitIndex) => (
-                <div key={unitIndex} className="grid grid-cols-8 gap-2 mb-2 items-center">
-                  <div className="text-center text-sm font-medium text-gray-500">{unit}</div>
-                  {weekDates.map((date, dayIndex) => {
-                    const dateKey = formatDateKey(date);
-                    const topicId = schedule[dateKey]?.[unitIndex];
-                    const topic = getTopicDetails(topicId);
-                    const unitTasks = tasks[`${dateKey}-${unitIndex}`] || [];
-                    const completedTasks = unitTasks.filter(t => t.completed).length;
-                    const totalTasks = unitTasks.length;
-                    
-                    return (
-                      <div key={dayIndex} className={`h-16 rounded border flex flex-col justify-center items-center p-1 text-xs ${topic ? topic.color + ' text-white bg-opacity-90' : 'bg-gray-50'}`}>
-                        {topic ? (
-                          <>
-                            <span className="font-bold truncate w-full text-center">{topic.name}</span>
-                            {totalTasks > 0 && (
-                              <span className="mt-1 bg-white/20 px-2 rounded-full">
-                                {completedTasks}/{totalTasks} 完成
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-gray-300">-</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+            </div>
+
+            {/* 新增：P人的計分板 */}
+            <div className="flex justify-center gap-8 bg-blue-50/50 p-4 rounded-lg border border-blue-100">
+              <div className="text-lg font-bold text-green-600">
+                P人的成功：{successCount}
+              </div>
+              <div className="text-lg font-bold text-orange-500">
+                P人加油：{needsWorkCount}
+              </div>
             </div>
           </div>
         )}
@@ -305,15 +356,13 @@ export default function App() {
                               e.stopPropagation();
                               const newTopicId = e.target.value;
                               
-                              // 若選擇了某個主題，進行額度檢查
                               if (newTopicId) {
                                 const selectedTopic = getTopicDetails(newTopicId);
                                 const currentUsage = getTopicUsage(newTopicId);
                                 
-                                // 檢查是否超過額度 (排除原本就已經是這個主題的情況)
                                 if (currentUsage >= selectedTopic.target && topicId !== newTopicId) {
                                   alert("該任務額度已用完");
-                                  return; // 阻止變更
+                                  return; 
                                 }
                               }
                               
@@ -324,7 +373,6 @@ export default function App() {
                             {topics.map(t => {
                               const usage = getTopicUsage(t.id);
                               const isFull = usage >= t.target;
-                              // 若該儲存格原本就是選這個任務，則不應該將它禁用（否則無法維持原本的選擇）
                               const isDisabled = isFull && topicId !== t.id;
                               
                               return (
