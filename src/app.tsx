@@ -125,6 +125,18 @@ export default function App() {
     return topics.find(t => t.id === topicId) || null;
   };
 
+  // 取得該主題在「當週」已經被分配了幾個單元
+  const getTopicUsage = (topicId) => {
+    let count = 0;
+    weekDates.forEach(date => {
+      const dateKey = formatDateKey(date);
+      if (schedule[dateKey]) {
+        count += schedule[dateKey].filter(id => id === topicId).length;
+      }
+    });
+    return count;
+  };
+
   const totalTargetUnits = topics.reduce((sum, topic) => sum + topic.target, 0);
   const remainingUnits = 42 - totalTargetUnits;
 
@@ -287,17 +299,45 @@ export default function App() {
                           </div>
                           
                           <select 
-                            className={`w-full text-sm p-1.5 rounded border mb-2 ${topic ? topic.color + ' text-white' : 'bg-white'}`}
+                            className={`w-full text-sm p-1.5 rounded border mb-2 outline-none ${topic ? topic.color + ' text-white' : 'bg-white text-gray-700'}`}
                             value={topicId || ''}
                             onChange={(e) => {
                               e.stopPropagation();
-                              handleAssignTopic(dateKey, unitIndex, e.target.value);
+                              const newTopicId = e.target.value;
+                              
+                              // 若選擇了某個主題，進行額度檢查
+                              if (newTopicId) {
+                                const selectedTopic = getTopicDetails(newTopicId);
+                                const currentUsage = getTopicUsage(newTopicId);
+                                
+                                // 檢查是否超過額度 (排除原本就已經是這個主題的情況)
+                                if (currentUsage >= selectedTopic.target && topicId !== newTopicId) {
+                                  alert("該任務額度已用完");
+                                  return; // 阻止變更
+                                }
+                              }
+                              
+                              handleAssignTopic(dateKey, unitIndex, newTopicId);
                             }}
                           >
-                            <option value="">-- 空白 --</option>
-                            {topics.map(t => (
-                              <option key={t.id} value={t.id} className="bg-white text-gray-800">{t.name}</option>
-                            ))}
+                            <option value="" className="text-gray-700">-- 空白 --</option>
+                            {topics.map(t => {
+                              const usage = getTopicUsage(t.id);
+                              const isFull = usage >= t.target;
+                              // 若該儲存格原本就是選這個任務，則不應該將它禁用（否則無法維持原本的選擇）
+                              const isDisabled = isFull && topicId !== t.id;
+                              
+                              return (
+                                <option 
+                                  key={t.id} 
+                                  value={t.id} 
+                                  disabled={isDisabled}
+                                  className={`bg-white ${isDisabled ? 'text-gray-300' : 'text-gray-800'}`}
+                                >
+                                  {t.name} {isDisabled ? '(額度已滿)' : `(${usage}/${t.target})`}
+                                </option>
+                              );
+                            })}
                           </select>
 
                           {!isSelected && topic && (
